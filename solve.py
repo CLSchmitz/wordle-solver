@@ -1,7 +1,6 @@
-import numpy as np
 import random as sysrand
-from tqdm import tqdm
-import seaborn as sns
+
+from matplotlib.pyplot import get
 
 '''
 word_info schema:
@@ -40,6 +39,20 @@ top_10_words =  ['earls',
                  'raise',
                  'arise',
                  'arose']
+
+def make_word_info():
+    '''
+    Helper function that returns an empty word_info tuple
+    '''
+
+    d = [{'correct':'','wrong':[]},
+    {'correct':'','wrong':[]},
+    {'correct':'','wrong':[]},
+    {'correct':'','wrong':[]},
+    {'correct':'','wrong':[]}]
+    word_info = {'positions':d, 'letters': []}
+
+    return word_info
 
 def get_letter_frequencies(words): #TODO remove letters that are already in word. Unless they're in there twice?
     '''
@@ -208,7 +221,14 @@ def update_info_from_guess(status, guess, word_info):
     return word_info
         
 
-def solve(correct = None, count_tries = False, verbose = True):
+def solve(correct = None, method = 'standard', count_tries = False, verbose = True):
+
+    if method == 'standard':
+        return solve_standard(correct,count_tries,verbose)
+    elif method == 'two_guess':
+        return solve_two_guess(correct,count_tries,verbose)
+
+def solve_standard(correct = None, count_tries = False, verbose = True):
     '''
     The big boy function. Optionally takes in a correct word and solves it automatically,
     else suggests guesses and solves using user feedback.
@@ -218,13 +238,7 @@ def solve(correct = None, count_tries = False, verbose = True):
     :return: None if count_tries is false, else int: number of tries taken
     '''
 
-    # Initiate word_info
-    d = [{'correct':'','wrong':[]},
-    {'correct':'','wrong':[]},
-    {'correct':'','wrong':[]},
-    {'correct':'','wrong':[]},
-    {'correct':'','wrong':[]}]
-    word_info = {'positions':d, 'letters': []}
+    word_info = make_word_info()
     
     # Initiate all the other stuff
     status = '_____'
@@ -236,14 +250,17 @@ def solve(correct = None, count_tries = False, verbose = True):
         if tries > 0:
             
             choices = list_matching_words(word_info, choices) # Get updated list of choices
-            
+
+            # TODO see if making the second guess use completely different letters improves performance
+
             if len(choices) == 0:
                 print('No matching word found!')
                 break
-            
+
             freqs = get_letter_frequencies(choices) # Get letter frequencies in list of choices
             guess = pick_best_word(choices, freqs) # Pick best word according to letter frequencies
             
+
         else: # On first iteration just pick a good starting word
             
             guess = sysrand.choice(top_10_words)
@@ -262,4 +279,89 @@ def solve(correct = None, count_tries = False, verbose = True):
         tries += 1
     
     if count_tries: return tries
+
+def solve_two_guess(correct = None, count_tries = False, verbose = True):
+    '''
+    The big boy function. Optionally takes in a correct word and solves it automatically,
+    else suggests guesses and solves using user feedback.
+    :param correct: string, optional, a correct word to solve for. If None, user can supply correct word or guess feedback.
+    :param count_tries: bool, optional, if True, function returns number of guesses taken until correct word
+    :param verbose: verbose
+    :return: None if count_tries is false, else int: number of tries taken
+    '''
+
+    # Initiate word_info
+    word_info = make_word_info()
+    
+    # Initiate all the other stuff
+    status = '_____'
+    tries = 0
+    choices = words
+    
+    while status != 'XXXXX':
+
+        if tries == 1 and status.count('X') < 3: # Make another guess with a word covering high-prob new letters,
+                                                 # unless first guess was great (3 correct letters)
+
+            temp_word_info = make_word_info()
+            for pos in temp_word_info['positions']:
+                for letter in guess: 
+                    pos['wrong'].append(letter)
+
+            temp_choices = list_matching_words(temp_word_info, choices)
         
+            freqs = get_letter_frequencies(temp_choices)
+            guess = pick_best_word(temp_choices, freqs)
+
+
+        elif tries > 1:
+            
+            choices = list_matching_words(word_info, choices) # Get updated list of choices
+
+            # TODO see if making the second guess use completely different letters improves performance
+
+            if len(choices) == 0:
+                print('No matching word found!')
+                break
+
+            freqs = get_letter_frequencies(choices) # Get letter frequencies in list of choices
+            guess = pick_best_word(choices, freqs) # Pick best word according to letter frequencies
+
+        else: # On first iteration just pick a good starting word
+            
+            guess = sysrand.choice(top_10_words)
+        
+        if correct is not None:
+
+            status = check_guess(guess, correct) # Check guess against correct word
+            if verbose: print(guess + ' ' + status)
+
+        else: 
+
+            status = manual_check_guess(guess) # Ask for user feedback
+        
+        word_info = update_info_from_guess(status, guess, word_info) # Update word_info
+       
+        tries += 1
+    
+    if count_tries: return tries
+
+def solve_benchmark():
+
+    from tqdm import tqdm
+
+    s = []
+    print('Standard') # 4.271 tries on average
+    for x in tqdm(words):
+        s.append(solve(x , count_tries= True, verbose = False))
+    
+    t = []
+    print('Two Guess') # 4.343 tries on average
+    for x in tqdm(words):
+        t.append(solve(x , method = 'two_guess', count_tries= True, verbose = False))
+
+    return s, t    
+
+if __name__ == "__main__":
+        
+    solve()
